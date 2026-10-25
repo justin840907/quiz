@@ -105,6 +105,14 @@ input[type=text], input[type=number] { background: #0a0908; color: var(--fg); bo
 .toast { position: fixed; left: 50%; bottom: calc(24px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); background: var(--gold); color: #1a1208; padding: 10px 18px; border-radius: 999px; font-weight: 700; opacity: 0; transition: opacity .25s; pointer-events: none; }
 .toast.show { opacity: 1; }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+/* 計時 */
+.timer { position: relative; min-width: 140px; height: 48px; border-radius: 22px; background: #0a0908; border: 1px solid var(--line); overflow: hidden; display: flex; align-items: center; justify-content: center; }
+.timer i { position: absolute; left: 0; top: 0; bottom: 0; background: var(--gold-deep); opacity: .35; transition: width .1s linear; }
+.timer b { position: relative; font-family: var(--display); font-size: 24px; color: var(--gold); font-variant-numeric: tabular-nums; }
+.timer.shown b { color: var(--muted); }
+.verdict { font-family: var(--display); font-size: clamp(36px, 8vw, 64px); font-weight: 900; letter-spacing: .1em; }
+.verdict.ok { color: var(--ok); } .verdict.bad { color: var(--bad); }
+
 /* 頒獎 */
 .scene.award { background: radial-gradient(ellipse at 50% 30%, #2a2113 0%, #0e0c0b 65%); }
 .award-wrap { position: relative; min-height: 100%; display: grid; place-items: center; text-align: center; }
@@ -260,8 +268,11 @@ let toastT; const toast = m => { const t = $('#toast'); t.textContent = m; t.cla
 const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
 // 成績碼：N 位數字（每題選的選項 1–4），主持人輸入後可算每題答對率
-const encode = picks => picks.map(p => p + 1).join('');
-const decode = code => new RegExp('^[1-4]{' + N + '}$').test(code) ? [...code].map(c => +c - 1) : null;
+const QSEC = 20;                 // 每題作答秒數（Kahoot 式）
+const PTS_MAX = 1000, PTS_MIN = 500; // 答對依速度給 500–1000 分
+const ptsFor = (ms) => Math.round(PTS_MAX - (PTS_MAX - PTS_MIN) * Math.min(1, Math.max(0, ms / (QSEC * 1000))));
+const encode = picks => picks.map(p => p == null ? 0 : p + 1).join('');
+const decode = code => new RegExp('^[0-4]{' + N + '}$').test(code) ? [...code].map(c => +c === 0 ? null : +c - 1) : null;
 const scoreOf = picks => picks.reduce((s, p, i) => s + (p === QUIZ[i].ans ? 1 : 0), 0);
 
 // ───────── 路由 ─────────
@@ -269,7 +280,7 @@ const route = () => (location.hash.replace('#', '') || 'play');
 window.addEventListener('hashchange', render);
 function nav(h) { location.hash = h; }
 function tabs(cur) {
-  const t = [['host', '首頁 QR'], ['reveal', '公布答案'], ['stats', '統計分數'], ['award', '頒獎'], ['edit', '編輯題目']];
+  const t = [['host', '首頁 QR'], ['reveal', '出題'], ['stats', '統計分數'], ['award', '頒獎'], ['edit', '編輯題目']];
   return `<nav class="tabs">${t.map(([h, l]) => `<a href="#${h}" class="${cur === h ? 'on' : ''}">${l}</a>`).join('')}<a href="#play">手機作答頁</a></nav>`;
 }
 
@@ -282,13 +293,13 @@ function viewHost() {
       <div style="display:grid;gap:18px">
         <div class="eyebrow">孟勳餞別會 · 現場問答</div>
         <h1>你有多了解<br>孟勳？</h1>
-        <p class="muted" style="font-size:18px;max-width:34em">${N} 題，全部出自剛剛那支影片。掃右邊的 QR code，用手機作答，答完把成績拿給主持人登記。</p>
+        <p class="muted" style="font-size:18px;max-width:34em">${N} 題，全部出自剛剛那支影片。掃右邊的 QR code 加入，跟著投影幕一題一題作答，答對越快分數越高。</p>
         <div class="steps">
           <div>掃描 QR code，輸入你的名字</div>
-          <div>作答 ${N} 題，每題只有一次機會</div>
+          <div>每題 ${QSEC} 秒，跟著主持人一題一題作答</div>
           <div>把成績畫面拿給主持人，上排行榜</div>
         </div>
-        <div class="row"><a class="btn" href="#reveal">開始公布答案 →</a><a class="btn ghost" href="#stats">統計分數</a></div>
+        <div class="row"><a class="btn" href="#reveal">開始出題 →</a><a class="btn ghost" href="#stats">統計分數</a></div>
       </div>
       <div style="display:grid;gap:10px;justify-items:center">
         <div class="qrbox" id="qr"></div>
@@ -304,35 +315,47 @@ function viewHost() {
   $('#saveUrl').onclick = () => { store.set('shareUrl', $('#shareUrl').value.trim()); render(); toast('QR 已更新'); };
 }
 
-// ───────── 公布答案（投影）─────────
-let rv = { i: 0, shown: false };
+// ───────── 公布答案／主持模式（投影）─────────
+let rv = { i: 0, phase: 'ready', t0: 0 }; // ready → running → shown
+let rvTimer = null;
 function viewReveal() {
   const q = QUIZ[rv.i];
+  clearInterval(rvTimer);
+  const left = rv.phase === 'running' ? Math.max(0, QSEC - (Date.now() - rv.t0) / 1000) : QSEC;
   app.innerHTML = `<div class="view">
     ${tabs('reveal')}
-    <div class="progress"><i style="width:${(rv.i + (rv.shown ? 1 : .5)) / N * 100}%"></i></div>
-    <div class="qnum">第 ${rv.i + 1} 題 / ${N}</div>
+    <div class="progress"><i style="width:${(rv.i + (rv.phase === 'shown' ? 1 : .5)) / N * 100}%"></i></div>
+    <div class="row"><div class="qnum">第 ${rv.i + 1} 題 / ${N}</div><span class="sp"></span>
+      <div class="timer ${rv.phase}" id="timer"><b id="tleft">${Math.ceil(left)}</b><i style="width:${left / QSEC * 100}%"></i></div></div>
     <div class="qtext">${esc(q.q)}</div>
-    <div class="opts">${q.opts.map((o, k) => `<div class="opt ${rv.shown ? (k === q.ans ? 'right' : 'dim') : ''}"><b>${L[k]}</b><span>${esc(o)}</span></div>`).join('')}</div>
-    ${rv.shown ? `<div class="why">${esc(q.why)}</div>` : ''}
+    <div class="opts">${q.opts.map((o, k) => `<div class="opt ${rv.phase === 'shown' ? (k === q.ans ? 'right' : 'dim') : ''}"><b>${L[k]}</b><span>${esc(o)}</span></div>`).join('')}</div>
+    ${rv.phase === 'shown' ? `<div class="why">${esc(q.why)}</div>` : `<p class="muted" style="margin:0">${rv.phase === 'ready' ? '請大家在手機上按「準備好了」，然後按「開始計時」。' : '作答中… 時間到或按「公布答案」。'}</p>`}
     <div class="row">
       <button class="btn ghost" id="prev" ${rv.i === 0 ? 'disabled' : ''}>← 上一題</button>
       <span class="sp"></span>
-      ${rv.shown ? (rv.i < N - 1 ? `<button class="btn big" id="next">下一題 →</button>` : `<a class="btn big" href="#stats">看統計分數 →</a>`) : `<button class="btn big" id="show">公布答案</button>`}
+      ${rv.phase === 'ready' ? `<button class="btn big" id="start">開始計時（${QSEC} 秒）</button>` : rv.phase === 'running' ? `<button class="btn big" id="show">公布答案</button>` : (rv.i < N - 1 ? `<button class="btn big" id="next">下一題 →</button>` : `<a class="btn big" href="#stats">看統計分數 →</a>`)}
     </div>
   </div>`;
   const b = (id, f) => { const e = $(id); if (e) e.onclick = f; };
-  b('#show', () => { rv.shown = true; render(); });
-  b('#next', () => { rv.i++; rv.shown = false; render(); });
-  b('#prev', () => { rv.i--; rv.shown = true; render(); });
+  b('#start', () => { rv.phase = 'running'; rv.t0 = Date.now(); render(); });
+  b('#show', () => { rv.phase = 'shown'; render(); });
+  b('#next', () => { rv.i++; rv.phase = 'ready'; render(); });
+  b('#prev', () => { rv.i--; rv.phase = 'shown'; render(); });
+  if (rv.phase === 'running') rvTimer = setInterval(() => {
+    const l = Math.max(0, QSEC - (Date.now() - rv.t0) / 1000);
+    const tl = $('#tleft'), bar = $('#timer i'); if (!tl) return clearInterval(rvTimer);
+    tl.textContent = Math.ceil(l); bar.style.width = `${l / QSEC * 100}%`;
+    if (l <= 0) { clearInterval(rvTimer); rv.phase = 'shown'; render(); }
+  }, 100);
 }
 
 // ───────── 統計分數（投影）─────────
-let entry = { name: '', score: null, code: '' };
+let entry = { name: '', score: '', code: '' };
 function viewStats() {
   const rows = store.get('results', []);
   const sorted = [...rows].sort((a, b) => b.score - a.score || a.t - b.t);
-  const hist = Array.from({ length: N + 1 }, (_, s) => rows.filter(r => r.score === s).length);
+  const correctOf = r => r.picks ? scoreOf(r.picks) : null;
+  const hist = Array.from({ length: N + 1 }, (_, s) => rows.filter(r => correctOf(r) === s).length);
   const maxH = Math.max(1, ...hist);
   const avg = rows.length ? (rows.reduce((s, r) => s + r.score, 0) / rows.length) : 0;
   const withCode = rows.filter(r => r.picks);
@@ -342,11 +365,11 @@ function viewStats() {
     <div class="row"><div><div class="eyebrow">成績統計</div><h2>誰最懂孟勳？</h2></div><span class="sp"></span><a class="btn" href="#award">頒獎 →</a><button class="btn ghost" id="clear">清除全部</button></div>
     <div class="stats">
       <div style="display:grid;gap:18px">
-        <div class="kpi"><div><b>${rows.length}</b><span>人作答</span></div><div><b>${rows.length ? avg.toFixed(1) : '–'}</b><span>平均分（滿分 ${N}）</span></div><div><b>${hist[N]}</b><span>人全對</span></div></div>
+        <div class="kpi"><div><b>${rows.length}</b><span>人作答</span></div><div><b>${rows.length ? Math.round(avg) : '–'}</b><span>平均分（滿分 ${N * PTS_MAX}）</span></div><div><b>${hist[N]}</b><span>人全對</span></div></div>
         <div class="panel" style="padding:18px">
-          <div class="eyebrow" style="margin-bottom:28px">分數分布</div>
+          <div class="eyebrow" style="margin-bottom:28px">答對題數分布（依成績碼）</div>
           <div class="hist" style="grid-template-columns:repeat(${N + 1},1fr)">${hist.map((h, s) => `<div class="bar ${h === maxH && h > 0 ? 'hot' : ''}" style="height:${h / maxH * 100}%"><span>${h || ''}</span></div>`).join('')}</div>
-          <div class="histx" style="grid-template-columns:repeat(${N + 1},1fr)">${hist.map((_, s) => `<div>${s} 分</div>`).join('')}</div>
+          <div class="histx" style="grid-template-columns:repeat(${N + 1},1fr)">${hist.map((_, s) => `<div>${s} 題</div>`).join('')}</div>
         </div>
         <div class="panel" style="padding:18px">
           <div class="eyebrow" style="margin-bottom:12px">每題答對率 ${withCode.length ? `（${withCode.length} 人有輸入成績碼）` : '（需要輸入成績碼）'}</div>
@@ -357,7 +380,7 @@ function viewStats() {
         <div class="panel" style="display:grid;gap:12px">
           <div class="eyebrow">登記成績</div>
           <input type="text" id="nm" placeholder="名字" value="${esc(entry.name)}" autocomplete="off">
-          <div class="pills">${Array.from({ length: N + 1 }, (_, s) => `<button class="pill ${entry.score === s ? 'on' : ''}" data-s="${s}">${s}</button>`).join('')}</div>
+          <input type="text" id="sc" placeholder="總分（手機成績頁上的大數字）" value="${esc(entry.score)}" inputmode="numeric" autocomplete="off">
           <input type="text" id="cd" placeholder="成績碼（選填，${N} 位數字，可算每題答對率）" value="${esc(entry.code)}" inputmode="numeric" maxlength="${N}" autocomplete="off">
           <button class="btn" id="add">加入排行榜</button>
         </div>
@@ -365,68 +388,112 @@ function viewStats() {
       </div>
     </div>
   </div>`;
-  const nm = $('#nm'), cd = $('#cd');
-  nm.oninput = () => entry.name = nm.value; cd.oninput = () => entry.code = cd.value.trim();
-  document.querySelectorAll('.pill').forEach(p => p.onclick = () => { entry.score = +p.dataset.s; document.querySelectorAll('.pill').forEach(x => x.classList.toggle('on', x === p)); });
+  const nm = $('#nm'), cd = $('#cd'), scIn = $('#sc');
+  nm.oninput = () => entry.name = nm.value; cd.oninput = () => entry.code = cd.value.trim(); scIn.oninput = () => entry.score = scIn.value.trim();
+  [nm, scIn, cd].forEach(el => el.addEventListener('keydown', e => { if (e.key === 'Enter') $('#add').click(); }));
   $('#add').onclick = () => {
     const name = entry.name.trim(); if (!name) { toast('先輸入名字'); nm.focus(); return; }
-    let picks = decode(entry.code), score = entry.score;
-    if (picks) score = scoreOf(picks);
-    if (score == null) { toast('選一個分數，或輸入成績碼'); return; }
+    const picks = decode(entry.code); const score = parseInt(entry.score, 10);
+    if (!Number.isFinite(score)) { toast('請輸入手機上顯示的總分'); scIn.focus(); return; }
     rows.push({ name, score, picks, t: Date.now() }); store.set('results', rows);
-    entry = { name: '', score: null, code: '' }; render(); toast(`${name} ${score} 分，已登記`); setTimeout(() => $('#nm') && $('#nm').focus(), 50);
+    entry = { name: '', score: '', code: '' }; render(); toast(`${name} ${score} 分，已登記`); setTimeout(() => $('#nm') && $('#nm').focus(), 50);
   };
   document.querySelectorAll('[data-del]').forEach(b => b.onclick = () => { store.set('results', rows.filter(r => r.t !== +b.dataset.del)); render(); });
   $('#clear').onclick = () => { if ($('#clear').dataset.arm) { store.set('results', []); render(); } else { $('#clear').dataset.arm = 1; $('#clear').textContent = '再按一次確認清除'; } };
 }
 
-// ───────── 手機作答 ─────────
-let pl = store.get('player', { name: '', i: 0, picks: [], done: false });
+// ───────── 手機作答（Kahoot 式一題一題）─────────
+// phase: wait（等主持人）→ q（作答中）→ sent（已送出，等公布）→ result（看對錯）
+let pl = store.get('player', { name: '', i: 0, picks: [], pts: [], phase: 'wait', qt0: 0, done: false });
+if (!pl || !Array.isArray(pl.pts) || !pl.phase) pl = { name: '', i: 0, picks: [], pts: [], phase: 'wait', qt0: 0, done: false }; // 舊版資料相容
+let plTimer = null;
 function savePl() { store.set('player', pl); }
 function viewPlay() {
+  clearInterval(plTimer);
   if (!pl.name) {
     app.innerHTML = `<div class="view narrow" style="justify-content:center">
       <div class="eyebrow">孟勳餞別會</div>
       <h1>你有多了解孟勳？</h1>
-      <p class="muted">${N} 題，每題只能選一次。答完會有分數，拿給主持人登記。</p>
+      <p class="muted">${N} 題，跟著投影幕一題一題作答。答對越快分數越高（每題 ${PTS_MIN}–${PTS_MAX} 分）。</p>
       <input type="text" id="pname" placeholder="你的名字" autocomplete="off" maxlength="20">
-      <button class="btn big" id="go">開始作答</button>
+      <button class="btn big" id="go">加入</button>
     </div>`;
-    const go = () => { const v = $('#pname').value.trim(); if (!v) { toast('先輸入名字'); return; } pl = { name: v, i: 0, picks: [], done: false }; savePl(); render(); };
+    const go = () => { const v = $('#pname').value.trim(); if (!v) { toast('先輸入名字'); return; } pl = { name: v, i: 0, picks: [], pts: [], phase: 'wait', qt0: 0, done: false }; savePl(); render(); };
     $('#go').onclick = go; $('#pname').addEventListener('keydown', e => { if (e.key === 'Enter') go(); });
     return;
   }
   if (pl.done) return viewResult();
-  const q = QUIZ[pl.i];
-  app.innerHTML = `<div class="view narrow">
-    <div class="row"><span class="muted">${esc(pl.name)}</span><span class="sp"></span><span class="qnum">${pl.i + 1} / ${N}</span></div>
-    <div class="progress"><i style="width:${pl.i / N * 100}%"></i></div>
-    <div class="qtext">${esc(q.q)}</div>
-    <div class="opts" style="grid-template-columns:1fr">${q.opts.map((o, k) => `<button class="opt" data-k="${k}"><b>${L[k]}</b><span>${esc(o)}</span></button>`).join('')}</div>
+  const q = QUIZ[pl.i], total = pl.pts.reduce((a, b) => a + b, 0);
+  const head = `<div class="row"><span class="muted">${esc(pl.name)}</span><span class="sp"></span><span class="muted" style="font-variant-numeric:tabular-nums">${total} 分</span><span class="qnum">${pl.i + 1} / ${N}</span></div>
+    <div class="progress"><i style="width:${pl.i / N * 100}%"></i></div>`;
+  if (pl.phase === 'wait') {
+    app.innerHTML = `<div class="view narrow" style="justify-content:center;text-align:center;align-items:center">${head}
+      <div class="eyebrow">第 ${pl.i + 1} 題</div>
+      <h2>看投影幕，等主持人說開始</h2>
+      <p class="muted">主持人按下計時後，再按這個按鈕看題目。</p>
+      <button class="btn big" id="ready">準備好了，看題目</button>
+    </div>`;
+    $('#ready').onclick = () => { pl.phase = 'q'; pl.qt0 = Date.now(); savePl(); render(); };
+    return;
+  }
+  if (pl.phase === 'q') {
+    const left = Math.max(0, QSEC - (Date.now() - pl.qt0) / 1000);
+    app.innerHTML = `<div class="view narrow">${head}
+      <div class="timer running" id="timer"><b id="tleft">${Math.ceil(left)}</b><i style="width:${left / QSEC * 100}%"></i></div>
+      <div class="qtext">${esc(q.q)}</div>
+      <div class="opts" style="grid-template-columns:1fr">${q.opts.map((o, k) => `<button class="opt" data-k="${k}"><b>${L[k]}</b><span>${esc(o)}</span></button>`).join('')}</div>
+    </div>`;
+    const submit = k => {
+      const ms = Date.now() - pl.qt0;
+      pl.picks[pl.i] = k; pl.pts[pl.i] = (k != null && k === q.ans && ms <= QSEC * 1000) ? ptsFor(ms) : 0;
+      pl.phase = 'sent'; savePl(); setTimeout(render, 220);
+    };
+    document.querySelectorAll('.opt').forEach(b => b.onclick = () => { b.classList.add('picked'); document.querySelectorAll('.opt').forEach(x => x.disabled = true); submit(+b.dataset.k); });
+    plTimer = setInterval(() => {
+      const l = Math.max(0, QSEC - (Date.now() - pl.qt0) / 1000);
+      const tl = $('#tleft'), bar = $('#timer i'); if (!tl) return clearInterval(plTimer);
+      tl.textContent = Math.ceil(l); bar.style.width = `${l / QSEC * 100}%`;
+      if (l <= 0) { clearInterval(plTimer); if (pl.phase === 'q') submit(null); }
+    }, 100);
+    return;
+  }
+  if (pl.phase === 'sent') {
+    app.innerHTML = `<div class="view narrow" style="justify-content:center;text-align:center;align-items:center">${head}
+      <div class="eyebrow">第 ${pl.i + 1} 題</div>
+      <h2>${pl.picks[pl.i] == null ? '時間到，沒作答' : '已送出：' + L[pl.picks[pl.i]] + ' ' + esc(q.opts[pl.picks[pl.i]])}</h2>
+      <p class="muted">等主持人公布答案後，按下面看結果。</p>
+      <button class="btn big" id="reveal">看結果</button>
+    </div>`;
+    $('#reveal').onclick = () => { pl.phase = 'result'; savePl(); render(); };
+    return;
+  }
+  // result
+  const ok = pl.picks[pl.i] === q.ans, got = pl.pts[pl.i] || 0;
+  app.innerHTML = `<div class="view narrow" style="justify-content:center;text-align:center;align-items:center">${head}
+    <div class="verdict ${ok ? 'ok' : 'bad'}">${ok ? '答對！' : (pl.picks[pl.i] == null ? '時間到' : '答錯')}</div>
+    <div class="score" style="font-size:clamp(56px,16vw,120px)">+${got}</div>
+    <p class="muted">正解：${L[q.ans]} ${esc(q.opts[q.ans])}${q.why ? '<br>' + esc(q.why) : ''}</p>
+    <button class="btn big" id="next">${pl.i < N - 1 ? '下一題' : '看總成績'}</button>
   </div>`;
-  document.querySelectorAll('.opt').forEach(b => b.onclick = () => {
-    b.classList.add('picked'); document.querySelectorAll('.opt').forEach(x => x.disabled = true);
-    pl.picks[pl.i] = +b.dataset.k; pl.i++; if (pl.i >= N) pl.done = true; savePl();
-    setTimeout(render, 260);
-  });
+  $('#next').onclick = () => { pl.i++; if (pl.i >= N) pl.done = true; else pl.phase = 'wait'; savePl(); render(); };
 }
 function viewResult() {
-  const score = scoreOf(pl.picks), code = encode(pl.picks);
-  const line = score === N ? '全對！你根本就是孟勳本人。' : score >= N - 2 ? '很懂孟勳，可以當他的傳記作者。' : score >= 3 ? '還算熟，但夜班一起值得不夠多。' : '你確定你跟他同一個科？';
+  const total = pl.pts.reduce((a, b) => a + b, 0), correct = scoreOf(pl.picks), code = encode(pl.picks);
+  const line = correct === N ? '全對！你根本就是孟勳本人。' : correct >= N - 2 ? '很懂孟勳，可以當他的傳記作者。' : correct >= Math.ceil(N / 2) ? '還算熟，但夜班一起值得不夠多。' : '你確定你跟他同一個科？';
   app.innerHTML = `<div class="view narrow" style="text-align:center;align-items:center">
     <div class="eyebrow">${esc(pl.name)} 的成績</div>
-    <div class="score">${score}<small> / ${N}</small></div>
+    <div class="score">${total}</div>
+    <div class="muted" style="font-size:18px">答對 ${correct} / ${N} 題</div>
     <p style="font-size:20px;font-family:var(--display)">${line}</p>
     <div style="display:grid;gap:8px;width:100%"><div class="muted" style="font-size:13px">成績碼（給主持人登記用）</div><div class="code">${code}</div></div>
-    <p class="muted">把這個畫面拿給主持人，就能上排行榜。</p>
+    <p class="muted">把這個畫面拿給主持人，登記「總分」就能上排行榜。</p>
     <details style="width:100%;text-align:left"><summary class="muted">看每題答案</summary>
-      <div class="review" style="margin-top:10px">${QUIZ.map((q, i) => `<div><span class="${pl.picks[i] === q.ans ? 'r' : 'w'}">${pl.picks[i] === q.ans ? '✓' : '✗'}</span><span>Q${i + 1} ${esc(q.q)}<br><span class="muted">答案：${L[q.ans]} ${esc(q.opts[q.ans])}${pl.picks[i] !== q.ans ? `（你選 ${L[pl.picks[i]]}）` : ''}</span></span></div>`).join('')}</div>
+      <div class="review" style="margin-top:10px">${QUIZ.map((q, i) => `<div><span class="${pl.picks[i] === q.ans ? 'r' : 'w'}">${pl.picks[i] === q.ans ? '✓' : '✗'}</span><span>Q${i + 1} ${esc(q.q)}<br><span class="muted">答案：${L[q.ans]} ${esc(q.opts[q.ans])}${pl.picks[i] !== q.ans ? `（你${pl.picks[i] == null ? '沒作答' : '選 ' + L[pl.picks[i]]}）` : ''} · +${pl.pts[i] || 0}</span></span></div>`).join('')}</div>
     </details>
     <button class="btn ghost" id="again">換個名字再玩一次</button>
   </div>`;
-  $('#again').onclick = () => { pl = { name: '', i: 0, picks: [], done: false }; savePl(); render(); };
+  $('#again').onclick = () => { pl = { name: '', i: 0, picks: [], pts: [], phase: 'wait', qt0: 0, done: false }; savePl(); render(); };
 }
-
 
 // ───────── 編輯題目（主持人）─────────
 let draft = null, artifactNS = undefined;
@@ -513,7 +580,7 @@ function viewAward() {
     body = `<div>
       <div class="medal">${['第一名', '第二名', '第三名'][place]}</div>
       <div class="winner ${place === 0 ? 'gold' : ''}">${esc(cur.name)}</div>
-      <div class="wscore">${cur.score} / ${N} 分</div>
+      <div class="wscore">${cur.score} 分</div>
       ${revealed.length > 1 ? `<div class="podium">${revealed.slice(0, -1).map(r => `<div class="pd"><i>${['第一名', '第二名', '第三名'][top.indexOf(r)]}</i><b>${esc(r.name)}</b><span>${r.score} 分</span></div>`).join('')}</div>` : ''}
     </div>`;
   }
