@@ -1,0 +1,453 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<style>img{max-width:100%}[hidden]{display:none!important}</style>
+</head>
+<body>
+<title>孟勳餞別問答</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@500;700;900&family=Noto+Sans+TC:wght@400;500;700&display=swap">
+<style>
+/* 版面：單一深色「宴會投影」視覺；主持人用投影機、大家用手機。 */
+:root {
+  --bg: #0e0c0b; --panel: #1a1614; --line: #3a312a;
+  --fg: #f3e9d8; --muted: #a8977f; --gold: #d9b26f; --gold-deep: #a9823f;
+  --ok: #7fc48a; --bad: #e07a6a;
+  --display: "Noto Serif TC", "Songti TC", "PMingLiU", serif;
+  --body: "Noto Sans TC", "Microsoft JhengHei", system-ui, sans-serif;
+  color-scheme: dark;
+}
+html, body { height: 100%; }
+body { margin: 0; background: var(--bg); color: var(--fg); font-family: var(--body); font-size: 16px; line-height: 1.5;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 0; }
+* { box-sizing: border-box; }
+button, input { font: inherit; }
+.view { max-width: 1100px; margin: 0 auto; min-height: 100%; display: flex; flex-direction: column; padding-block: 24px 40px; gap: 24px; }
+.view.narrow { max-width: 560px; }
+h1, h2, h3 { font-family: var(--display); margin: 0; text-wrap: balance; line-height: 1.15; }
+h1 { font-size: clamp(34px, 6vw, 72px); font-weight: 900; letter-spacing: .08em; }
+h2 { font-size: clamp(24px, 4vw, 44px); font-weight: 700; }
+.eyebrow { font-size: 13px; letter-spacing: .3em; text-transform: uppercase; color: var(--gold); font-weight: 700; }
+.muted { color: var(--muted); }
+.row { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
+.sp { flex: 1; }
+.btn { background: var(--gold); color: #1a1208; border: 0; border-radius: 999px; padding: 12px 24px; font-weight: 700; cursor: pointer; letter-spacing: .06em; }
+.btn:hover { background: #e6c384; }
+.btn:focus-visible, .opt:focus-visible, input:focus-visible { outline: 3px solid var(--gold); outline-offset: 3px; }
+.btn.ghost { background: transparent; color: var(--gold); border: 1px solid var(--gold-deep); }
+.btn.big { font-size: 22px; padding: 18px 40px; }
+.btn[disabled] { opacity: .4; cursor: not-allowed; }
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 24px; }
+input[type=text], input[type=number] { background: #0a0908; color: var(--fg); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; width: 100%; }
+.tabs { display: flex; gap: 8px; flex-wrap: wrap; }
+.tabs a { color: var(--muted); text-decoration: none; padding: 8px 14px; border-radius: 999px; border: 1px solid transparent; font-weight: 500; }
+.tabs a.on { color: var(--gold); border-color: var(--gold-deep); }
+
+/* 首頁 QR */
+.hero { display: grid; grid-template-columns: 1fr auto; gap: 32px; align-items: center; }
+@media (max-width: 760px) { .hero { grid-template-columns: 1fr; } }
+.qrbox { background: #fff; padding: 18px; border-radius: 16px; width: fit-content; justify-self: center; }
+.qrbox canvas, .qrbox img { display: block; }
+.steps { display: grid; gap: 10px; counter-reset: s; }
+.steps div { display: flex; gap: 14px; align-items: baseline; }
+.steps div::before { counter-increment: s; content: counter(s); font-family: var(--display); font-weight: 900; color: var(--gold); font-size: 28px; min-width: 1.2em; }
+
+/* 題目 */
+.qnum { font-family: var(--display); color: var(--gold); font-size: 15px; letter-spacing: .3em; }
+.qtext { font-family: var(--display); font-size: clamp(22px, 3.4vw, 40px); font-weight: 700; line-height: 1.3; }
+.opts { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); }
+.opt { text-align: left; background: #0a0908; color: var(--fg); border: 1px solid var(--line); border-radius: 12px; padding: 16px 18px; cursor: pointer; font-size: 18px; display: flex; gap: 14px; align-items: center; transition: border-color .15s, transform .15s; }
+.opt:hover { border-color: var(--gold-deep); }
+.opt b { font-family: var(--display); color: var(--gold); font-size: 22px; min-width: 1.2em; }
+.opt.picked { border-color: var(--gold); background: #231d16; }
+.opt.right { border-color: var(--ok); background: #14241a; }
+.opt.wrong { border-color: var(--bad); background: #2a1715; }
+.opt.dim { opacity: .45; }
+.progress { height: 4px; background: var(--line); border-radius: 2px; overflow: hidden; }
+.progress i { display: block; height: 100%; background: var(--gold); transition: width .3s; }
+.why { color: var(--muted); font-size: 17px; border-left: 3px solid var(--gold); padding-left: 14px; }
+
+/* 成績 */
+.score { font-family: var(--display); font-size: clamp(80px, 20vw, 180px); font-weight: 900; line-height: 1; color: var(--gold); font-variant-numeric: tabular-nums; }
+.score small { font-size: .3em; color: var(--muted); font-weight: 500; letter-spacing: .1em; }
+.code { font-family: ui-monospace, "Cascadia Mono", Consolas, monospace; font-size: 30px; letter-spacing: .25em; background: #0a0908; border: 1px dashed var(--gold-deep); border-radius: 12px; padding: 14px 18px; text-align: center; }
+.review { display: grid; gap: 8px; }
+.review div { display: flex; gap: 10px; align-items: baseline; font-size: 15px; }
+.review .r { color: var(--ok); } .review .w { color: var(--bad); }
+
+/* 統計 */
+.stats { display: grid; grid-template-columns: 1.1fr 1fr; gap: 24px; }
+@media (max-width: 860px) { .stats { grid-template-columns: 1fr; } }
+.board { display: grid; gap: 8px; }
+.board .p { display: grid; grid-template-columns: 2.2em 1fr auto; gap: 12px; align-items: center; padding: 10px 14px; border-radius: 10px; background: #0a0908; border: 1px solid var(--line); }
+.board .p.top { border-color: var(--gold); background: #231d16; }
+.board .rank { font-family: var(--display); font-weight: 900; color: var(--gold); font-size: 22px; }
+.board .pts { font-variant-numeric: tabular-nums; font-weight: 700; }
+.board .p button { background: none; border: 0; color: var(--muted); cursor: pointer; font-size: 14px; }
+.hist { display: grid; grid-template-columns: repeat(8, 1fr); gap: 8px; align-items: end; height: 180px; }
+.hist .bar { background: var(--gold-deep); border-radius: 6px 6px 0 0; position: relative; min-height: 3px; display: flex; align-items: flex-start; justify-content: center; transition: height .3s; }
+.hist .bar span { position: absolute; top: -22px; font-size: 13px; color: var(--fg); font-variant-numeric: tabular-nums; }
+.hist .bar.hot { background: var(--gold); }
+.histx { display: grid; grid-template-columns: repeat(8, 1fr); text-align: center; font-size: 13px; color: var(--muted); }
+.pills { display: flex; gap: 6px; flex-wrap: wrap; }
+.pill { width: 44px; height: 44px; border-radius: 50%; border: 1px solid var(--line); background: #0a0908; color: var(--fg); cursor: pointer; font-weight: 700; }
+.pill.on { background: var(--gold); color: #1a1208; border-color: var(--gold); }
+.kpi { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+.kpi div { background: #0a0908; border: 1px solid var(--line); border-radius: 12px; padding: 14px; }
+.kpi b { display: block; font-family: var(--display); font-size: 34px; color: var(--gold); font-variant-numeric: tabular-nums; }
+.kpi span { font-size: 13px; color: var(--muted); }
+.qdiff { display: grid; gap: 6px; font-size: 14px; }
+.qdiff div { display: grid; grid-template-columns: 2.5em 1fr 4em; gap: 10px; align-items: center; }
+.qdiff i { display: block; height: 8px; background: var(--line); border-radius: 4px; overflow: hidden; }
+.qdiff i b { display: block; height: 100%; background: var(--ok); }
+.toast { position: fixed; left: 50%; bottom: calc(24px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); background: var(--gold); color: #1a1208; padding: 10px 18px; border-radius: 999px; font-weight: 700; opacity: 0; transition: opacity .25s; pointer-events: none; }
+.toast.show { opacity: 1; }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+
+<div id="app"></div>
+<div id="toast" class="toast"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script id="quizdata" type="application/json">
+[
+ {
+  "q": "孟勳接下來要去哪間醫院，繼續當麻醉科醫師？",
+  "opts": [
+   "新營醫院",
+   "柳營奇美",
+   "佳里奇美",
+   "台南市立醫院"
+  ],
+  "ans": 0,
+  "why": "新營的病人很幸運。"
+ },
+ {
+  "q": "影片裡「跑最慢的那個」，是哪一場馬拉松？",
+  "opts": [
+   "日月潭馬拉松",
+   "古都馬拉松",
+   "新營馬拉松",
+   "Snoopy 路跑"
+  ],
+  "ans": 2,
+  "why": "2024.11.24 新營馬拉松，跑最慢的那個，也是最開心的那個。"
+ },
+ {
+  "q": "2024 年孟勳征服的「山道猴子」路線，第 11 座百岳是？",
+  "opts": [
+   "玉山",
+   "庫哈諾辛山",
+   "郡大山",
+   "合歡山"
+  ],
+  "ans": 1,
+  "why": "2024.02.03 庫哈諾辛山，IG 限動都幫你留著了。"
+ },
+ {
+  "q": "2024 歐洲麻醉年會（歐麻），在哪個城市？",
+  "opts": [
+   "巴黎",
+   "維也納",
+   "慕尼黑",
+   "阿姆斯特丹"
+  ],
+  "ans": 2,
+  "why": "Euroanaesthesia 2024，慕尼黑。還有湖邊的早晨、啤酒與豬腳。"
+ },
+ {
+  "q": "奇美春酒那天，孟勳是被誰灌酒的？",
+  "opts": [
+   "部長",
+   "邢主任",
+   "麻姊",
+   "學妹"
+  ],
+  "ans": 2,
+  "why": "影片裡那 36 秒的掙扎，全部都是麻姊。"
+ },
+ {
+  "q": "學妹打 CVC 的時候，孟勳的眼神都在看哪裡？",
+  "opts": [
+   "超音波畫面",
+   "血壓數字",
+   "學妹",
+   "手機"
+  ],
+  "ans": 2,
+  "why": "看學妹打 CVC，眼神都在看學妹。"
+ },
+ {
+  "q": "第一次去孟勳新家參觀，新家在幾樓？",
+  "opts": [
+   "7F",
+   "10F",
+   "12F",
+   "頂樓加蓋"
+  ],
+  "ans": 1,
+  "why": "10F，知道沒。"
+ }
+]
+</script>
+<script>
+/* 題目資料在上面的 quizdata 區塊；主持人可在頁面的「編輯題目」分頁修改並發布 */
+let QUIZ = JSON.parse(document.getElementById('quizdata').textContent);
+
+/* 大家掃 QR 要連到的網址。留空時用本頁網址；主持人也可以在首頁貼上分享連結。 */
+const SHARE_URL = '';
+
+const $ = s => document.querySelector(s);
+const app = $('#app');
+const L = 'ABCD';
+let N = QUIZ.length;
+const mem = {};
+const store = { get(k, d) { if (k in mem) return mem[k]; try { const v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } }, set(k, v) { mem[k] = v; try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { } } };
+let toastT; const toast = m => { const t = $('#toast'); t.textContent = m; t.classList.add('show'); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('show'), 1800); };
+const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+// 成績碼：N 位數字（每題選的選項 1–4），主持人輸入後可算每題答對率
+const encode = picks => picks.map(p => p + 1).join('');
+const decode = code => new RegExp('^[1-4]{' + N + '}$').test(code) ? [...code].map(c => +c - 1) : null;
+const scoreOf = picks => picks.reduce((s, p, i) => s + (p === QUIZ[i].ans ? 1 : 0), 0);
+
+// ───────── 路由 ─────────
+const route = () => (location.hash.replace('#', '') || 'play');
+window.addEventListener('hashchange', render);
+function nav(h) { location.hash = h; }
+function tabs(cur) {
+  const t = [['host', '首頁 QR'], ['reveal', '公布答案'], ['stats', '統計分數'], ['edit', '編輯題目']];
+  return `<nav class="tabs">${t.map(([h, l]) => `<a href="#${h}" class="${cur === h ? 'on' : ''}">${l}</a>`).join('')}<a href="#play">手機作答頁</a></nav>`;
+}
+
+// ───────── 首頁（投影）─────────
+function viewHost() {
+  const url = store.get('shareUrl', SHARE_URL) || location.href.split('#')[0];
+  app.innerHTML = `<div class="view">
+    ${tabs('host')}
+    <div class="hero">
+      <div style="display:grid;gap:18px">
+        <div class="eyebrow">孟勳餞別會 · 現場問答</div>
+        <h1>你有多了解<br>孟勳？</h1>
+        <p class="muted" style="font-size:18px;max-width:34em">${N} 題，全部出自剛剛那支影片。掃右邊的 QR code，用手機作答，答完把成績拿給主持人登記。</p>
+        <div class="steps">
+          <div>掃描 QR code，輸入你的名字</div>
+          <div>作答 ${N} 題，每題只有一次機會</div>
+          <div>把成績畫面拿給主持人，上排行榜</div>
+        </div>
+        <div class="row"><a class="btn" href="#reveal">開始公布答案 →</a><a class="btn ghost" href="#stats">統計分數</a></div>
+      </div>
+      <div style="display:grid;gap:10px;justify-items:center">
+        <div class="qrbox" id="qr"></div>
+        <div class="muted" style="font-size:13px;word-break:break-all;max-width:280px;text-align:center" id="qrurl">${esc(url)}</div>
+      </div>
+    </div>
+    <details class="panel" style="padding:14px 18px"><summary class="muted">QR 連到別的網址？</summary>
+      <div class="row" style="margin-top:10px"><input type="text" id="shareUrl" value="${esc(store.get('shareUrl', SHARE_URL))}" placeholder="貼上這個頁面的分享連結"><button class="btn ghost" id="saveUrl">更新 QR</button></div>
+      <p class="muted" style="font-size:13px;margin:10px 0 0">請先在右上角「分享」把這個頁面設成「任何有連結的人都能看」，手機才打得開。</p>
+    </details>
+  </div>`;
+  if (window.QRCode) new QRCode($('#qr'), { text: url, width: 260, height: 260, correctLevel: QRCode.CorrectLevel.M }); else $('#qr').innerHTML = '<div style="color:#333;width:260px;text-align:center">QR 產生器載入失敗，請重新整理</div>';
+  $('#saveUrl').onclick = () => { store.set('shareUrl', $('#shareUrl').value.trim()); render(); toast('QR 已更新'); };
+}
+
+// ───────── 公布答案（投影）─────────
+let rv = { i: 0, shown: false };
+function viewReveal() {
+  const q = QUIZ[rv.i];
+  app.innerHTML = `<div class="view">
+    ${tabs('reveal')}
+    <div class="progress"><i style="width:${(rv.i + (rv.shown ? 1 : .5)) / N * 100}%"></i></div>
+    <div class="qnum">第 ${rv.i + 1} 題 / ${N}</div>
+    <div class="qtext">${esc(q.q)}</div>
+    <div class="opts">${q.opts.map((o, k) => `<div class="opt ${rv.shown ? (k === q.ans ? 'right' : 'dim') : ''}"><b>${L[k]}</b><span>${esc(o)}</span></div>`).join('')}</div>
+    ${rv.shown ? `<div class="why">${esc(q.why)}</div>` : ''}
+    <div class="row">
+      <button class="btn ghost" id="prev" ${rv.i === 0 ? 'disabled' : ''}>← 上一題</button>
+      <span class="sp"></span>
+      ${rv.shown ? (rv.i < N - 1 ? `<button class="btn big" id="next">下一題 →</button>` : `<a class="btn big" href="#stats">看統計分數 →</a>`) : `<button class="btn big" id="show">公布答案</button>`}
+    </div>
+  </div>`;
+  const b = (id, f) => { const e = $(id); if (e) e.onclick = f; };
+  b('#show', () => { rv.shown = true; render(); });
+  b('#next', () => { rv.i++; rv.shown = false; render(); });
+  b('#prev', () => { rv.i--; rv.shown = true; render(); });
+}
+
+// ───────── 統計分數（投影）─────────
+let entry = { name: '', score: null, code: '' };
+function viewStats() {
+  const rows = store.get('results', []);
+  const sorted = [...rows].sort((a, b) => b.score - a.score || a.t - b.t);
+  const hist = Array.from({ length: N + 1 }, (_, s) => rows.filter(r => r.score === s).length);
+  const maxH = Math.max(1, ...hist);
+  const avg = rows.length ? (rows.reduce((s, r) => s + r.score, 0) / rows.length) : 0;
+  const withCode = rows.filter(r => r.picks);
+  const qrate = QUIZ.map((q, i) => withCode.length ? withCode.filter(r => r.picks[i] === q.ans).length / withCode.length : null);
+  app.innerHTML = `<div class="view">
+    ${tabs('stats')}
+    <div class="row"><div><div class="eyebrow">成績統計</div><h2>誰最懂孟勳？</h2></div><span class="sp"></span><button class="btn ghost" id="clear">清除全部</button></div>
+    <div class="stats">
+      <div style="display:grid;gap:18px">
+        <div class="kpi"><div><b>${rows.length}</b><span>人作答</span></div><div><b>${rows.length ? avg.toFixed(1) : '–'}</b><span>平均分（滿分 ${N}）</span></div><div><b>${hist[N]}</b><span>人全對</span></div></div>
+        <div class="panel" style="padding:18px">
+          <div class="eyebrow" style="margin-bottom:28px">分數分布</div>
+          <div class="hist" style="grid-template-columns:repeat(${N + 1},1fr)">${hist.map((h, s) => `<div class="bar ${h === maxH && h > 0 ? 'hot' : ''}" style="height:${h / maxH * 100}%"><span>${h || ''}</span></div>`).join('')}</div>
+          <div class="histx" style="grid-template-columns:repeat(${N + 1},1fr)">${hist.map((_, s) => `<div>${s} 分</div>`).join('')}</div>
+        </div>
+        <div class="panel" style="padding:18px">
+          <div class="eyebrow" style="margin-bottom:12px">每題答對率 ${withCode.length ? `（${withCode.length} 人有輸入成績碼）` : '（需要輸入成績碼）'}</div>
+          <div class="qdiff">${QUIZ.map((q, i) => `<div><span class="qnum">Q${i + 1}</span><i><b style="width:${qrate[i] == null ? 0 : qrate[i] * 100}%"></b></i><span style="text-align:right;font-variant-numeric:tabular-nums">${qrate[i] == null ? '–' : Math.round(qrate[i] * 100) + '%'}</span></div>`).join('')}</div>
+        </div>
+      </div>
+      <div style="display:grid;gap:18px;align-content:start">
+        <div class="panel" style="display:grid;gap:12px">
+          <div class="eyebrow">登記成績</div>
+          <input type="text" id="nm" placeholder="名字" value="${esc(entry.name)}" autocomplete="off">
+          <div class="pills">${Array.from({ length: N + 1 }, (_, s) => `<button class="pill ${entry.score === s ? 'on' : ''}" data-s="${s}">${s}</button>`).join('')}</div>
+          <input type="text" id="cd" placeholder="成績碼（選填，${N} 位數字，可算每題答對率）" value="${esc(entry.code)}" inputmode="numeric" maxlength="${N}" autocomplete="off">
+          <button class="btn" id="add">加入排行榜</button>
+        </div>
+        <div class="board">${sorted.length ? sorted.map((r, i) => `<div class="p ${i < 3 ? 'top' : ''}"><span class="rank">${i + 1}</span><span>${esc(r.name)}</span><span class="row" style="gap:10px"><span class="pts">${r.score} 分</span><button data-del="${r.t}" title="移除">✕</button></span></div>`).join('') : `<div class="muted">還沒有人登記。請大家把手機上的成績畫面拿過來。</div>`}</div>
+      </div>
+    </div>
+  </div>`;
+  const nm = $('#nm'), cd = $('#cd');
+  nm.oninput = () => entry.name = nm.value; cd.oninput = () => entry.code = cd.value.trim();
+  document.querySelectorAll('.pill').forEach(p => p.onclick = () => { entry.score = +p.dataset.s; document.querySelectorAll('.pill').forEach(x => x.classList.toggle('on', x === p)); });
+  $('#add').onclick = () => {
+    const name = entry.name.trim(); if (!name) { toast('先輸入名字'); nm.focus(); return; }
+    let picks = decode(entry.code), score = entry.score;
+    if (picks) score = scoreOf(picks);
+    if (score == null) { toast('選一個分數，或輸入成績碼'); return; }
+    rows.push({ name, score, picks, t: Date.now() }); store.set('results', rows);
+    entry = { name: '', score: null, code: '' }; render(); toast(`${name} ${score} 分，已登記`); setTimeout(() => $('#nm') && $('#nm').focus(), 50);
+  };
+  document.querySelectorAll('[data-del]').forEach(b => b.onclick = () => { store.set('results', rows.filter(r => r.t !== +b.dataset.del)); render(); });
+  $('#clear').onclick = () => { if ($('#clear').dataset.arm) { store.set('results', []); render(); } else { $('#clear').dataset.arm = 1; $('#clear').textContent = '再按一次確認清除'; } };
+}
+
+// ───────── 手機作答 ─────────
+let pl = store.get('player', { name: '', i: 0, picks: [], done: false });
+function savePl() { store.set('player', pl); }
+function viewPlay() {
+  if (!pl.name) {
+    app.innerHTML = `<div class="view narrow" style="justify-content:center">
+      <div class="eyebrow">孟勳餞別會</div>
+      <h1>你有多了解孟勳？</h1>
+      <p class="muted">${N} 題，每題只能選一次。答完會有分數，拿給主持人登記。</p>
+      <input type="text" id="pname" placeholder="你的名字" autocomplete="off" maxlength="20">
+      <button class="btn big" id="go">開始作答</button>
+    </div>`;
+    const go = () => { const v = $('#pname').value.trim(); if (!v) { toast('先輸入名字'); return; } pl = { name: v, i: 0, picks: [], done: false }; savePl(); render(); };
+    $('#go').onclick = go; $('#pname').addEventListener('keydown', e => { if (e.key === 'Enter') go(); });
+    return;
+  }
+  if (pl.done) return viewResult();
+  const q = QUIZ[pl.i];
+  app.innerHTML = `<div class="view narrow">
+    <div class="row"><span class="muted">${esc(pl.name)}</span><span class="sp"></span><span class="qnum">${pl.i + 1} / ${N}</span></div>
+    <div class="progress"><i style="width:${pl.i / N * 100}%"></i></div>
+    <div class="qtext">${esc(q.q)}</div>
+    <div class="opts" style="grid-template-columns:1fr">${q.opts.map((o, k) => `<button class="opt" data-k="${k}"><b>${L[k]}</b><span>${esc(o)}</span></button>`).join('')}</div>
+  </div>`;
+  document.querySelectorAll('.opt').forEach(b => b.onclick = () => {
+    b.classList.add('picked'); document.querySelectorAll('.opt').forEach(x => x.disabled = true);
+    pl.picks[pl.i] = +b.dataset.k; pl.i++; if (pl.i >= N) pl.done = true; savePl();
+    setTimeout(render, 260);
+  });
+}
+function viewResult() {
+  const score = scoreOf(pl.picks), code = encode(pl.picks);
+  const line = score === N ? '全對！你根本就是孟勳本人。' : score >= N - 2 ? '很懂孟勳，可以當他的傳記作者。' : score >= 3 ? '還算熟，但夜班一起值得不夠多。' : '你確定你跟他同一個科？';
+  app.innerHTML = `<div class="view narrow" style="text-align:center;align-items:center">
+    <div class="eyebrow">${esc(pl.name)} 的成績</div>
+    <div class="score">${score}<small> / ${N}</small></div>
+    <p style="font-size:20px;font-family:var(--display)">${line}</p>
+    <div style="display:grid;gap:8px;width:100%"><div class="muted" style="font-size:13px">成績碼（給主持人登記用）</div><div class="code">${code}</div></div>
+    <p class="muted">把這個畫面拿給主持人，就能上排行榜。</p>
+    <details style="width:100%;text-align:left"><summary class="muted">看每題答案</summary>
+      <div class="review" style="margin-top:10px">${QUIZ.map((q, i) => `<div><span class="${pl.picks[i] === q.ans ? 'r' : 'w'}">${pl.picks[i] === q.ans ? '✓' : '✗'}</span><span>Q${i + 1} ${esc(q.q)}<br><span class="muted">答案：${L[q.ans]} ${esc(q.opts[q.ans])}${pl.picks[i] !== q.ans ? `（你選 ${L[pl.picks[i]]}）` : ''}</span></span></div>`).join('')}</div>
+    </details>
+    <button class="btn ghost" id="again">換個名字再玩一次</button>
+  </div>`;
+  $('#again').onclick = () => { pl = { name: '', i: 0, picks: [], done: false }; savePl(); render(); };
+}
+
+
+// ───────── 編輯題目（主持人）─────────
+let draft = null, artifactNS = undefined;
+(async () => { try { artifactNS = window.claude && claude.use ? await claude.use('artifact') : null; } catch (e) { artifactNS = null; } if (route() === 'edit') render(); })();
+const blank = () => ({ q: '', opts: ['', '', '', ''], ans: 0, why: '' });
+function viewEdit() {
+  if (!draft) draft = JSON.parse(JSON.stringify(QUIZ));
+  const canPub = !!artifactNS;
+  app.innerHTML = `<div class="view">
+    ${tabs('edit')}
+    <div class="row"><div><div class="eyebrow">編輯題目</div><h2>改題目、選項、答案</h2></div><span class="sp"></span><button class="btn ghost" id="addq">＋ 新增一題</button></div>
+    <p class="muted" style="margin:0">${canPub ? '按「發布給所有人」會存成新版本，所有人（包括手機上的作答頁）重新整理後都會拿到新題目。' : artifactNS === undefined ? '正在確認發布權限…' : '這個版本是自行架站的檔案：「先存在這台電腦」只影響投影機這台；要讓手機也拿到新題目，請把改好的題目告訴 Claude 重新產生檔案，或直接編輯 index.html 裡的 quizdata 區塊後重新上傳。'}</p>
+    <div style="display:grid;gap:16px" id="qs">${draft.map((d, i) => `<div class="panel" style="display:grid;gap:10px">
+      <div class="row"><span class="qnum">第 ${i + 1} 題</span><span class="sp"></span><button class="btn ghost" data-del="${i}" style="padding:6px 14px">刪除</button></div>
+      <input type="text" data-q="${i}" value="${esc(d.q)}" placeholder="題目">
+      <div class="opts" style="grid-template-columns:repeat(auto-fit,minmax(200px,1fr))">${d.opts.map((o, k) => `<label class="opt" style="cursor:pointer"><input type="radio" name="ans${i}" value="${k}" ${d.ans === k ? 'checked' : ''} style="accent-color:var(--gold)"><b>${L[k]}</b><input type="text" data-o="${i}-${k}" value="${esc(o)}" placeholder="選項 ${L[k]}" style="padding:8px 10px"></label>`).join('')}</div>
+      <input type="text" data-w="${i}" value="${esc(d.why)}" placeholder="公布答案時顯示的一句話（選填）">
+    </div>`).join('')}</div>
+    <div class="row" style="position:sticky;bottom:calc(12px + env(safe-area-inset-bottom,0px));background:var(--bg);padding:12px 0;border-top:1px solid var(--line)">
+      <button class="btn ghost" id="reset">還原成目前版本</button><span class="sp"></span>
+      <button class="btn ghost" id="local">先存在這台電腦</button>
+      <button class="btn big" id="pub" ${canPub ? '' : 'disabled'}>發布給所有人</button>
+    </div>
+  </div>`;
+  const sync = () => {
+    draft.forEach((d, i) => {
+      d.q = $(`[data-q="${i}"]`).value; d.why = $(`[data-w="${i}"]`).value;
+      d.opts = d.opts.map((_, k) => $(`[data-o="${i}-${k}"]`).value);
+      const r = document.querySelector(`input[name="ans${i}"]:checked`); d.ans = r ? +r.value : 0;
+    });
+  };
+  const valid = () => { for (const [i, d] of draft.entries()) { if (!d.q.trim()) return `第 ${i + 1} 題沒有題目`; if (d.opts.some(o => !o.trim())) return `第 ${i + 1} 題有選項空白`; } return draft.length ? null : '至少要有一題'; };
+  $('#addq').onclick = () => { sync(); draft.push(blank()); render(); };
+  document.querySelectorAll('[data-del]').forEach(b => b.onclick = () => { sync(); draft.splice(+b.dataset.del, 1); render(); });
+  $('#reset').onclick = () => { draft = null; render(); toast('已還原'); };
+  const apply = () => { sync(); const e = valid(); if (e) { toast(e); return false; } QUIZ = JSON.parse(JSON.stringify(draft)); N = QUIZ.length; store.set('quizLocal', QUIZ); return true; };
+  $('#local').onclick = () => { if (apply()) toast('已存在這台電腦（手機仍是原版）'); };
+  $('#pub').onclick = async () => {
+    if (!apply()) return;
+    const btn = $('#pub'); btn.disabled = true; btn.textContent = '發布中…';
+    try {
+      await artifactNS.publish(buildDocument(QUIZ));
+      toast('已發布，所有人重新整理就會拿到新題目');
+      try { localStorage.removeItem('quizLocal'); } catch (e) { }
+    } catch (err) {
+      btn.disabled = false; btn.textContent = '發布給所有人';
+      toast(err && err.code === 'conflict' ? '有人剛發布了新版本，頁面會重新載入' : err && (err.code === 'not_granted' || err.code === 'not_writer') ? '這個帳號沒有發布權限' : '發布失敗，請再試一次');
+    }
+  };
+}
+// 用目前頁面的靜態部分 + 新題目，組回完整文件（不序列化畫面上的 DOM）
+const STATIC = (() => {
+  const b = document.body, pick = sel => Array.from(b.querySelectorAll(sel)).map(e => e.outerHTML);
+  return { head: pick('title, meta[name="claude:viewport-fit-sides"], link[rel="stylesheet"], style').join('\n'),
+           scripts: pick('script[src]').join('\n'), main: '<script>' + document.currentScript.textContent + '<\/script>',
+           reset: (document.head.querySelector('style') || {}).textContent || '' };
+})();
+function buildDocument(quiz) {
+  const data = '<script id="quizdata" type="application/json">\n' + JSON.stringify(quiz, null, 1).replace(/<\//g, '<\\/') + '\n<\/script>';
+  return '<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>' + STATIC.reset + '</style></head><body>'
+    + STATIC.head + '\n<div id="app"></div>\n<div id="toast" class="toast"></div>\n' + STATIC.scripts + '\n' + data + '\n' + STATIC.main + '\n</body></html>';
+}
+// 這台電腦先存的題目（還沒發布時）優先
+(() => { const l = store.get('quizLocal', null); if (l && l.length) { QUIZ = l; N = QUIZ.length; } })();
+
+function render() {
+  const r = route();
+  window.scrollTo(0, 0);
+  if (r === 'host') viewHost(); else if (r === 'reveal') viewReveal(); else if (r === 'stats') viewStats(); else if (r === 'edit') viewEdit(); else viewPlay();
+}
+render();
+</script>
+
+</body>
+</html>
