@@ -105,6 +105,24 @@ input[type=text], input[type=number] { background: #0a0908; color: var(--fg); bo
 .toast { position: fixed; left: 50%; bottom: calc(24px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); background: var(--gold); color: #1a1208; padding: 10px 18px; border-radius: 999px; font-weight: 700; opacity: 0; transition: opacity .25s; pointer-events: none; }
 .toast.show { opacity: 1; }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+/* 頒獎 */
+.scene.award { background: radial-gradient(ellipse at 50% 30%, #2a2113 0%, #0e0c0b 65%); }
+.award-wrap { position: relative; min-height: 100%; display: grid; place-items: center; text-align: center; }
+.award-title { font-family: var(--display); font-size: clamp(40px, 7vw, 96px); font-weight: 900; letter-spacing: .3em; margin-left: .3em; color: #fff; }
+.award-sub { color: var(--gold); letter-spacing: .4em; font-size: 18px; margin-top: 16px; }
+.medal { font-family: var(--display); font-size: clamp(22px, 3vw, 36px); letter-spacing: .5em; margin-left: .5em; color: var(--gold); }
+.winner { font-family: var(--display); font-size: clamp(64px, 12vw, 200px); font-weight: 900; line-height: 1.1; color: #fff; text-shadow: 0 0 60px rgba(217,178,111,.45); animation: pop .7s cubic-bezier(.2,1.4,.3,1) both; }
+.winner.gold { background: linear-gradient(180deg, #fff3d1, #d9b26f 60%, #a9823f); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.wscore { font-family: var(--display); font-size: clamp(24px, 4vw, 48px); color: var(--muted); margin-top: 8px; font-variant-numeric: tabular-nums; animation: pop .7s .15s cubic-bezier(.2,1.4,.3,1) both; }
+.podium { display: flex; gap: 28px; justify-content: center; align-items: flex-end; margin-top: 48px; flex-wrap: wrap; }
+.podium .pd { display: grid; gap: 6px; justify-items: center; opacity: .75; }
+.podium .pd b { font-family: var(--display); font-size: 26px; color: #fff; }
+.podium .pd i { font-style: normal; font-size: 13px; letter-spacing: .3em; color: var(--gold); }
+.podium .pd span { font-size: 14px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.award-hint { position: fixed; left: 0; right: 0; bottom: calc(18px + env(safe-area-inset-bottom, 0px)); text-align: center; color: var(--muted); font-size: 13px; letter-spacing: .2em; }
+#confetti { position: fixed; inset: 0; pointer-events: none; }
+@keyframes pop { from { opacity: 0; transform: scale(.6) translateY(30px); filter: blur(10px); } to { opacity: 1; transform: none; filter: none; } }
+@media (prefers-reduced-motion: reduce) { .winner, .wscore { animation: none; } }
 </style>
 
 <div id="app"></div>
@@ -251,7 +269,7 @@ const route = () => (location.hash.replace('#', '') || 'play');
 window.addEventListener('hashchange', render);
 function nav(h) { location.hash = h; }
 function tabs(cur) {
-  const t = [['host', '首頁 QR'], ['reveal', '公布答案'], ['stats', '統計分數'], ['edit', '編輯題目']];
+  const t = [['host', '首頁 QR'], ['reveal', '公布答案'], ['stats', '統計分數'], ['award', '頒獎'], ['edit', '編輯題目']];
   return `<nav class="tabs">${t.map(([h, l]) => `<a href="#${h}" class="${cur === h ? 'on' : ''}">${l}</a>`).join('')}<a href="#play">手機作答頁</a></nav>`;
 }
 
@@ -321,7 +339,7 @@ function viewStats() {
   const qrate = QUIZ.map((q, i) => withCode.length ? withCode.filter(r => r.picks[i] === q.ans).length / withCode.length : null);
   app.innerHTML = `<div class="view">
     ${tabs('stats')}
-    <div class="row"><div><div class="eyebrow">成績統計</div><h2>誰最懂孟勳？</h2></div><span class="sp"></span><button class="btn ghost" id="clear">清除全部</button></div>
+    <div class="row"><div><div class="eyebrow">成績統計</div><h2>誰最懂孟勳？</h2></div><span class="sp"></span><a class="btn" href="#award">頒獎 →</a><button class="btn ghost" id="clear">清除全部</button></div>
     <div class="stats">
       <div style="display:grid;gap:18px">
         <div class="kpi"><div><b>${rows.length}</b><span>人作答</span></div><div><b>${rows.length ? avg.toFixed(1) : '–'}</b><span>平均分（滿分 ${N}）</span></div><div><b>${hist[N]}</b><span>人全對</span></div></div>
@@ -474,10 +492,57 @@ function buildDocument(quiz) {
 // 這台電腦先存的題目（還沒發布時）優先
 (() => { const l = store.get('quizLocal', null); if (l && l.length) { QUIZ = l; N = QUIZ.length; } })();
 
+
+// ───────── 頒獎（投影）─────────
+let aw = { step: 0 };
+const RANKS = ['第三名', '第二名', '第一名'];
+function viewAward() {
+  const rows = store.get('results', []);
+  const sorted = [...rows].sort((a, b) => b.score - a.score || a.t - b.t);
+  const top = sorted.slice(0, 3);            // top[0]=第一名
+  const order = [top[2], top[1], top[0]];    // 揭曉順序：三 → 二 → 一
+  const steps = order.filter(Boolean).length;
+  if (aw.step > steps) aw.step = steps;
+  let body = '';
+  if (!top.length) body = `<div><div class="award-title">頒獎典禮</div><div class="award-sub">還沒有人登記成績，先到「統計分數」輸入</div></div>`;
+  else if (aw.step === 0) body = `<div><div class="award-title">頒獎典禮</div><div class="award-sub">誰最懂孟勳 · 按一下揭曉</div></div>`;
+  else {
+    const revealed = order.filter(Boolean).slice(0, aw.step); const cur = revealed[revealed.length - 1];
+    const rankIdx = 3 - (order.indexOf(cur) + 1) - 1 + 1; // 轉成名次 0=第一
+    const place = top.indexOf(cur);
+    body = `<div>
+      <div class="medal">${['第一名', '第二名', '第三名'][place]}</div>
+      <div class="winner ${place === 0 ? 'gold' : ''}">${esc(cur.name)}</div>
+      <div class="wscore">${cur.score} / ${N} 分</div>
+      ${revealed.length > 1 ? `<div class="podium">${revealed.slice(0, -1).map(r => `<div class="pd"><i>${['第一名', '第二名', '第三名'][top.indexOf(r)]}</i><b>${esc(r.name)}</b><span>${r.score} 分</span></div>`).join('')}</div>` : ''}
+    </div>`;
+  }
+  const done = top.length && aw.step >= steps;
+  app.innerHTML = `<div class="view" style="min-height:100%">${tabs('award')}<div class="award-wrap" id="awArea">${body}</div></div>
+    <canvas id="confetti"></canvas>
+    <div class="award-hint">${!top.length ? '' : done ? '恭喜！ · 空白鍵或點一下重來' : '點畫面或按空白鍵 → 下一位'}</div>`;
+  const advance = () => { if (!top.length) return; aw.step = done ? 0 : aw.step + 1; render(); };
+  $('#awArea').onclick = advance;
+  document.onkeydown = e => { if (route() !== 'award' || e.target.tagName === 'INPUT') return; if (e.code === 'Space' || e.key === 'ArrowRight') { e.preventDefault(); advance(); } };
+  if (top.length && aw.step >= 1) confetti(aw.step >= steps ? 220 : 60, aw.step >= steps);
+}
+function confetti(n, big) {
+  const c = $('#confetti'); if (!c) return; c.width = innerWidth; c.height = innerHeight; const ctx = c.getContext('2d');
+  const cols = ['#d9b26f', '#fff3d1', '#e07a6a', '#7fc48a', '#ffffff', '#a9823f'];
+  const ps = Array.from({ length: n }, () => ({ x: Math.random() * c.width, y: -20 - Math.random() * c.height * .5, r: 4 + Math.random() * 6, vx: (Math.random() - .5) * 2, vy: 2 + Math.random() * 3, a: Math.random() * 6.28, va: (Math.random() - .5) * .2, col: cols[Math.floor(Math.random() * cols.length)] }));
+  let t0 = performance.now(); const life = big ? 6000 : 3000;
+  const tick = now => {
+    if (!document.body.contains(c)) return; ctx.clearRect(0, 0, c.width, c.height);
+    for (const p of ps) { p.x += p.vx; p.y += p.vy; p.a += p.va; ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.a); ctx.fillStyle = p.col; ctx.fillRect(-p.r / 2, -p.r / 4, p.r, p.r / 2); ctx.restore(); if (p.y > c.height + 20) { p.y = -20; p.x = Math.random() * c.width; } }
+    if (now - t0 < life) requestAnimationFrame(tick); else ctx.clearRect(0, 0, c.width, c.height);
+  };
+  requestAnimationFrame(tick);
+}
+
 function render() {
   const r = route();
   window.scrollTo(0, 0);
-  if (r === 'host') viewHost(); else if (r === 'reveal') viewReveal(); else if (r === 'stats') viewStats(); else if (r === 'edit') viewEdit(); else viewPlay();
+  if (r === 'host') viewHost(); else if (r === 'reveal') viewReveal(); else if (r === 'stats') viewStats(); else if (r === 'edit') viewEdit(); else if (r === 'award') viewAward(); else viewPlay();
 }
 render();
 </script>
